@@ -1,0 +1,66 @@
+# History files
+.Rhistory
+.Rapp.history
+
+# Session data
+.RData
+.RDataTmp
+
+# User-specific files
+.Ruserdata
+
+# RStudio project files
+.Rproj.user/
+*.Rproj
+
+# Example code created during build
+*-Ex.R
+
+# Build and check output
+/*.tar.gz
+/*.Rcheck/
+
+# Vignettes (built output)
+vignettes/*.html
+vignettes/*.pdf
+
+# knitr / R Markdown caches
+*_cache/
+cache/
+
+# Temporary R Markdown files
+*.utf8.md
+*.knit.md
+
+# OAuth tokens
+.httr-oauth
+
+# Environment variables
+.Renviron
+
+# pkgdown site
+docs/
+
+# RStudio Connect
+rsconnect/
+
+# Bookdown / HTML artifacts
+/*_files/
+
+# OS-specific junk
+.DS_Store
+Thumbs.db
+
+# Dev
+dev/
+
+# Data-raw
+data-raw/
+
+# Tmp
+tmp/
+/doc/
+/Meta/
+inst/doc
+
+TODO.org

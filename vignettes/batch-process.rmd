@@ -1,0 +1,119 @@
+---
+title: "Batch processing of HyMi kinematics"
+output: rmarkdown::html_vignette
+vignette: >
+  %\VignetteIndexEntry{Batch processing of HyMi kinematics}
+  %\VignetteEngine{knitr::rmarkdown}
+  \usepackage[utf8]{inputenc}
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(
+  collapse = TRUE,
+  comment = "#>"
+)
+```
+
+# Overview
+
+This vignette demonstrates how to run the batch kinematics pipeline on
+a directory of tracking files and associated metadata. The wrapper
+function `batch_compute_kinematics()` reads the metadata table,
+selects trials marked for inclusion, matches them to `.trk` files, and
+runs `compute_kinematics()` for each matched file.
+
+The result is a list of per-trial results that can be combined into a
+single data frame for downstream analysis and plotting.
+
+# Data layout
+
+The example assumes the following layout on disk:
+
+- An Excel metadata file with one row per trial
+(e.g. `Tabelle_Gesamt_23-4-21.xlsx`).
+- A directory containing all `.trk` tracking files for those trials
+https://opensourcephysics.github.io/tracker-website/.
+
+Each row in the metadata table contains an individual identifier and
+measurement number, which together encode the trial ID used in the
+`.trk` filenames.
+
+
+# Running the batch kinematics wrapper
+
+The main entry point is `batch_compute_kinematics()`. It takes the
+directory containing the metadata file (`meta_dir`), the metadata
+filename (`meta_file`), the directory with `.trk` files (`trk_dir`),
+and a few options controlling the plots produced by
+`compute_kinematics()`.
+
+```{r batch-run, eval=FALSE}
+library(gothouant)  
+
+root_data_dir <- "~/Dropbox/hymi/v03/data"
+
+res <- batch_compute_kinematics(
+  meta_dir    = root_data_dir,
+  meta_file   = "Tabelle_Gesamt_23-4-21.xlsx",
+  trk_dir     = root_data_dir,
+  plotsize    = 1.5,
+  scale_plot  = "bodylength",
+  out_fig_dir = "~/tmp/gothouant/"
+)
+```
+
+The function prints the name of each `.trk` file as it is processed. If
+`compute_kinematics()` throws an error for a file, the wrapper emits a
+warning and returns `NULL` at that position in the result list.
+
+# Building a combined result table
+
+The list `res` contains one element per processed trial. These elements
+can be combined row-wise into a single data frame:
+
+```{r bind-res, eval=FALSE}
+res_df <- dplyr::bind_rows(res)
+
+dplyr::glimpse(res_df)
+```
+
+Each row of `res_df` contains the metadata columns plus list-columns
+for derived kinematic summaries, such as:
+
+- `stride_kin`: per-leg and midpoint stride-level measures.
+- `leg_times`: per-leg swing, contact, and cycle timings.
+- `tarsus_summary`: body-frame tarsus trajectory summaries normalized by body length.
+
+
+# Long-format summaries
+
+Instead of manually unpacking list-columns from `res_df`,  call
+the convenience wrapper `summarise_kinematics_long()` which returns a
+list of long-format tables for common summaries:
+
+```{r summarise-long, eval=FALSE}
+
+
+kin_long <- summarise_kinematics_long(res)
+
+
+head(kin_long$leg_times)
+
+head(kin_long$stride_kin)
+
+head(kin_long$tarsus_summary)
+
+head(kin_long$all_measures)
+
+
+```
+## Overview plots
+
+For a quick visual impression of leg-wise kinematics across individuals, legs,
+and ant/non-ant grouping the helper `plot_kinematics_overview()`
+produces a compact set of diagnostic panels from the combined long-format table
+`all_leg_measures`.
+
+```{r kinematics-overview, fig.width=7, fig.height=5, eval=FALSE}
+plot_kinematics_overview(kin_long$all_leg_measures)
+```
