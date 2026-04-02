@@ -1,0 +1,58 @@
+#' Tarsus excursion summary measures for walking insects
+#'
+#' A tidy, long-format data set containing per-leg summary measures of
+#' tarsus (foot) excursion relative to the body for individual insects
+#' recorded in locomotion trials. Each row corresponds to
+#' one summary metric for a given leg and individual.
+#'
+#' @format A tibble with  N  rows and 11 variables:
+#' \describe{
+#'   \item{Individuum}{Numeric individual identifier (ID) for each animal.}
+#'   \item{metric}{Character label of the excursion summary; e.g.
+#'     \code{"lat_median"}, \code{"lon_min"}, \code{"lon_max"}.}
+#'   \item{value}{Numeric value of the corresponding metric. Lateral
+#'     and longitudinal excursions are given in body-length units.}
+#'   \item{leg_num}{Integer leg index within the animal (e.g. 1–3 for front to hind leg on one side).}
+#'   \item{body_length}{Body length of the individual in millimetres.}
+#'   \item{Messnummer}{Character trial identifier (original recording ID).}
+#'   \item{mass_mg}{Body mass in milligrams.}
+#'   \item{Genus}{Genus of the specimen (character).}
+#'   \item{Species}{Species name (character).}
+#'   \item{fps}{Frame rate of the recording in frames per second (character, e.g. \code{"250 fps"}).}
+#'   \item{ant_group}{Factor indicating whether the species is an ant
+#'     (\code{"ant"}) or non-ant (\code{"non-ant"}).}
+#' }
+#'
+#' @details
+#' Tarsus trajectories were tracked relative to the body coordinate
+#' system and reduced to a small set of excursion descriptors for each
+#' leg. The variable \code{metric} encodes different components of
+#' tarsus excursion:
+#' \itemize{
+#'   \item \code{lat_median}: median lateral position of the tarsus
+#'     relative to the body midpoint over the analysed sequence
+#'     (median lateral tarsus excursion).
+#'   \item \code{lon_min}: minimum longitudinal position of the tarsus
+#'     (most posterior position, i.e. maximal leg retraction).
+#'   \item \code{lon_max}: maximum longitudinal position of the tarsus
+#'     (most anterior position, i.e. maximal leg protraction).
+#' }
+#' Together, these metrics describe the range and median position of
+#' tarsus excursion in the longitudinal and mediolateral directions
+#' (tarsus_excursion) for each leg.
+#' @details
+#' All spatial measures are expressed in a body-anchored coordinate
+#' system. For each individual and trial, a longitudinal body axis was
+#' defined by the line from the abdomen tip to the head (posterior-anterior axis).
+#' The lateral axis was defined as perpendicular to
+#' this head–abdomen axis in the horizontal plane. Left-right symmetry was assumed.
+#' Tarsus and body midpoint positions were
+#' transformed into this body-fixed frame for every frame, so that
+#' longitudinal excursion quantifies leg protraction/retraction along
+#' the head–abdomen axis, and lateral excursion quantifies deviation
+#' from the body midline. Excursions are normalised
+#' by body length and reported in body-length units.
+#' @source Internal example data for the \pkg{gothouant} package.
+#' @examples
+#' dplyr::glimpse(data_tarsi_excursion)
+"data_tarsi_excursion"

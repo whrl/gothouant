@@ -48,8 +48,11 @@ and a few options controlling the plots produced by
 `compute_kinematics()`.
 
 ```{r batch-run, eval=FALSE}
-library(gothouant)  
-
+# library(gothouant)  
+# devtools::load_all()
+library(XML)
+library(tidyr)
+library(dplyr)
 root_data_dir <- "~/Dropbox/hymi/v03/data"
 
 res <- batch_compute_kinematics(
@@ -101,10 +104,22 @@ head(kin_long$leg_times)
 
 head(kin_long$stride_kin)
 
-head(kin_long$tarsus_summary)
+head(kin_long$tarsus_summary, n = 10)
 
-head(kin_long$all_measures)
+head(kin_long$all_leg_measures, n = 10)
 
+
+data_leg_times<- kin_long$leg_times
+usethis::use_data(data_leg_times, overwrite = TRUE)
+writexl::write_xlsx(leg_times, paste0("~/tmp/data_leg_times-", Sys.Date(), ".xlsx"))
+
+data_stride_kin <- kin_long$stride_kin |> select(-leg_key)
+usethis::use_data(data_stride_kin, overwrite = TRUE)
+writexl::write_xlsx(leg_times, paste0("~/tmp/data_stride_kin-", Sys.Date(), ".xlsx"))
+
+data_tarsi_excursion <- kin_long$tarsus_summary
+usethis::use_data(data_tarsi_excursion, overwrite = TRUE)
+writexl::write_xlsx(leg_times, paste0("~/tmp/data_tarsi_excursion", Sys.Date(), ".xlsx"))
 
 ```
 ## Overview plots

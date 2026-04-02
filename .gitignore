@@ -64,3 +64,9 @@ tmp/
 inst/doc
 
 TODO.org
+
+*.html
+*.docx
+*.pdf
+*.rda
+/data/

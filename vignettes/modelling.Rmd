@@ -2,9 +2,9 @@
 title: "Comparing ants and non-ants with linear mixed models"
 output: rmarkdown::html_vignette
 vignette: >
-%\VignetteIndexEntry{Comparing ants and non-ants with linear mixed models}
-%\VignetteEngine{knitr::rmarkdown}
-\usepackage[utf8]{inputenc}
+  %\VignetteIndexEntry{Comparing ants and non-ants with linear mixed models}
+  %\VignetteEngine{knitr::rmarkdown}
+  \usepackage[utf8]{inputenc}
 ---
 
 ```{r setup, include=FALSE}
@@ -19,52 +19,43 @@ knitr::opts_chunk$set(
 # Introduction
 
 This vignette demonstrates how to analyse stride- and cycle-wise gait
-measures using linear mixed-effects models.[cite:1] The main question is
+measures using linear mixed-effects models. The main question is
 whether ants differ from non-ants in centre-of-mass (COM) stride length,
 COM stride speed, and duty factor while accounting for repeated
-measurements within individuals and legs.[cite:1]
+measurements within individuals and legs.
 
 We assume that kinematic measures have already been computed and merged
-into a single long-format tibble `all_leg_measures`.[cite:1] Each row
+into a single long-format tibble `all_leg_measures`. Each row
 corresponds to one stride (for spatial measures) or one cycle (for
 temporal measures) of a given leg.
 
-```{r packages}
+```{r packages, eval=FALSE}
 library(dplyr)
 library(ggplot2)
 library(lme4)
-library(lmerTest)  # p-values and convenient summaries
+library(lmerTest) 
 library(broom.mixed)
+library(ggeffects)   
+library(patchwork)   
+library(emmeans)
+library(XML)
+library(dplyr)
+library(tidyr)
+library(broom.mixed)   # or broom.mixed::tidy
+library(modelsummary)
+library(lmerTest)
+library(gtsummary)
+library(broom.mixed)  # ensures broom::glance() works nicely for lmer models
+library(officer)
+library(flextable)
+
 ```
 
-# Data structure
+# Data 
 
-The data used in this vignette should have at least the following
-columns:[cite:1]
+```{r cleandata, eval=FALSE}
 
-- `Individuum`: individual ID (character or factor)
-- `Messnummer`: measurement or trial number
-- `side`: side label (e.g. `"L"` or `"R"`)
-- `leg`: leg identifier (e.g. `"L1"`, `"R2"`)
-- `ant_group`: factor with levels `"ant"` and `"non-ant"`
-- `stride`: stride label (e.g. `"l1"`, `"l2"`)
-- `com_stride_length`: COM-based stride length
-- `com_stride_speed`: COM-based stride speed
-- `duty_factor`: duty factor in percent (from temporal tibble)
-
-```{r glimpse, eval=FALSE}
-dplyr::glimpse(all_leg_measures)
-```
-
-For the examples below we will restrict to strides with complete data
-for the focal outcome and drop obviously invalid values (e.g. negative
-speeds).
-
-```{r clean-data}
-library(ggeffects)   # ggpredict / ggeffect
-library(ggplot2)
-library(patchwork)   # or cowplot
-
+devtools::load_all()
 root_data_dir <- "~/Dropbox/hymi/v03/data"
 
 res <- batch_compute_kinematics(
@@ -79,222 +70,231 @@ res <- batch_compute_kinematics(
 kin_long <- summarise_kinematics_long(res)
 
 d_speed <- kin_long$stride_kin |>
-  dplyr::select(c(Individuum, Messnummer,midpoint_stride_speed, body_length, mass_mg, ant_group, Species)) |>
+  dplyr::select(c(Individuum, Messnummer,midpoint_stride_speed, body_length, mass_mg, ant_group, Species, Genus)) |>
   na.omit()
 str(d_speed)
 
 dat <- kin_long$all_leg_measures |>
-  dplyr::select(c(Individuum, Messnummer,metric, value, mass_mg, ant_group, Species, cycle, leg_num, body_length)) |>
+  dplyr::select(c(Individuum, Messnummer,metric, value, mass_mg, ant_group, Species,Genus, cycle, leg_num, body_length)) |>
   na.omit()
 str(dat)
 
-colnames(dat)
 
-d_speed <- dat |> pivot_wider(names_from = metric, values_from = value)
+d_speed <- dat |>
+  pivot_wider(names_from = metric, values_from = value) |>
+  mutate(contact_inv = 1/contact_time,
+         swing_inv = 1/swing_time,
+         leg_stride_length_s = scale(leg_stride_length),
+         contact_time_s = scale(contact_time),
+         swing_time_s = scale(swing_time),
+         body_length_s = scale(body_length),
+         midpoint_stride_speed_s = scale(midpoint_stride_speed))
 d_speed
+
+data_mixed_model <- d_speed
+
+head(data_mixed_model)
+usethis::use_data(data_mixed_model, overwrite = TRUE)
+writexl::write_xlsx(data_mixed_model, paste0("~/tmp/data_mixed_model-", Sys.Date(), ".xlsx"))
 
 contrasts(d_speed$ant_group)
 
 ```
 
-# Example 1: COM stride speed
+# Mixed Model
 
-## Model specification
+## Scaled
 
-We start with COM stride speed as outcome and ant-group as the main
-predictor.
+```{r modelscaled, eval=FALSE}
 
-```{r model-speed}
-m_speed_1 <- lmer(
-  midpoint_stride_speed ~ ant_group + body_length + (1 | Species) + (1  | Individuum) ,
+
+m_speed_scaled <- lmer(
+  midpoint_stride_speed ~ ant_group * (leg_stride_length_s + contact_time_s + swing_time_s) + body_length_s + (1 | Species) + (1  |Species:Individuum) ,
   data = d_speed
 )
+summary(m_speed_scaled)
 
-m_speed_2 <- lmer(
-  midpoint_stride_speed ~ ant_group * (scale(leg_stride_length) + scale(contact_time) + scale(swing_time) + scale(body_length)) + (1 | Species) + (1  |Species:Individuum) ,
+tbl_speed_scaled <- 
+  tbl_regression(
+    m_speed_scaled,
+    exponentiate = FALSE,
+    label = list(
+      ant_group ~ "Non-ant (vs ant)",
+      leg_stride_length_s ~ "Leg stride length (per 1 SD of mm)",
+      contact_time_s ~ "Contact time (per 1 SD of s)",
+      swing_time_s ~ "Swing time (per 1 SD of s)",
+      body_length_s ~ "Body length (per 1 SD of mm)"
+    )
+  ) |>
+  add_glance_table(
+    include = c(nobs, AIC, BIC)   # you can also add logLik, deviance, etc.
+  )|>
+  modify_caption(
+    "**Table X. Linear mixed model of midpoint stride speed (mm/s) with standardized predictors.**  
+    Fixed-effect estimates represent the expected change in midpoint stride speed (mm/s) associated with a 1 standard deviation increase in each continuous predictor, holding all other variables constant."
+  )
+
+doc <- read_docx()
+doc <- body_add_flextable(doc, as_flex_table(tbl_speed_scaled))
+print(doc, target = "speed_model_scaled.docx")
+
+```
+
+## Unscaled
+
+```{r model, eval=FALSE}
+
+m_speed <- lmer(
+  midpoint_stride_speed ~ ant_group * ( leg_stride_length + contact_time + swing_time) + body_length + (1 | Species) + (1  |Species:Individuum) ,
   data = d_speed
 )
+summary(m_speed)
 
-summary(m_speed_2)
-BIC(m_speed_2)
-
-
-# predictions over body_length for each ant_group
-pred <- ggpredict(
-  m_speed,
-  terms = c("body_length", "ant_group")
-)
-
-p_raw <- ggplot(d_speed,
-                aes(x = body_length,
-                    y = midpoint_stride_speed,
-                    colour = ant_group)) +
-  geom_point(alpha = 0.6) +
-  theme_minimal() +
-  labs(title = "Raw data")
-
-p_fit <- plot(pred) +
-  theme_minimal() +
-  labs(title = "Model predictions")
-
-p_raw + p_fit   # with patchwork
-# or cowplot::plot_grid(p_raw, p_fit, nrow = 1)
-```
-
-The fixed-effect estimate for `ant_groupant` corresponds to the mean
-difference in COM stride speed between ants and non-ants, with
-non-ants as the reference level.[cite:1]
-
-For a more compact table:
-
-```{r tidy-speed}
-broom.mixed::tidy(m_speed, effects = "fixed", conf.int = TRUE)
-```
-
-## Model diagnostics
-
-```{r diag-speed, fig.cap="Residuals vs fitted for COM stride speed model"}
-par(mfrow = c(1, 2))
-plot(m_speed, which = 1)  # residuals vs fitted
-qqnorm(resid(m_speed)); qqline(resid(m_speed))
-par(mfrow = c(1, 1))
-```
-
-If strong deviations from normality or heteroscedasticity are visible,
-consider transforming the outcome (e.g. log-speed) or using a robust
-variance estimator.[cite:1]
-
-## Marginal means
-
-We can obtain group means from the fitted model by predicting at the
-group level and averaging.[cite:1]
-
-```{r emmeans-speed}
-pred_dat <- dat %>%
-  group_by(ant_group) %>%
-  summarise(
-    com_stride_speed = mean(com_stride_speed, na.rm = TRUE),
-    .groups = "drop"
+tbl_speed <- 
+  tbl_regression(
+    m_speed,
+    exponentiate = FALSE,
+    label = list(
+      ant_group ~ "Non-ant (vs ant)",
+      leg_stride_length ~ "Leg stride length (mm)",
+      contact_time ~ "Contact time (s)",
+      swing_time ~ "Swing time (s)",
+      body_length ~ "Body length (mm)"
+    )
+  ) |>
+  add_glance_table(
+    include = c(nobs, AIC, BIC)   # you can also add logLik, deviance, etc.
+  )|>
+  modify_caption(
+    "**Table Y. Linear mixed model of midpoint stride speed (mm/s) with predictors in original units.**  
+    Fixed-effect estimates represent the expected change in midpoint stride speed (mm/s) per 1-unit increase in each continuous predictor (mm or s), holding all other variables constant."
   )
-
-pred_dat
+doc <- read_docx()
+doc <- body_add_flextable(doc, as_flex_table(tbl_speed))
+print(doc, target = "speed_model_absolute.docx")
 ```
 
-For more advanced marginal means and contrasts you may integrate
-`emmeans`, but this vignette stays with base tools to keep dependencies
-minimal.
+## Plots
 
-# Example 2: COM stride length
+```{r model-plots, eval=FALSE}
 
-We repeat the same structure for COM stride length.[cite:1]
-
-```{r model-length}
-m_length <- lmer(
-  com_stride_length ~ ant_group + (1 | Individuum) + (1 | Individuum:leg),
-  data = dat
+caption_stride <- paste(
+  "Raw data points (semi-transparent markers) and individual means (opaque marker) illustrate how midpoint speed
+varies with leg stride length in this limited sample of ant and non-ant species.
+Dashed lines are unadjusted group-wise linear fits. Solid coloured lines and ribbons show mixed-model predictions from a linear
+mixed-effects model with random intercepts for species and individuals and an ant_group × leg_stride_length interaction,
+adjusted for contact time, swing time, and body length. Thus, the fitted curves reflect the effect of changing
+leg stride length while holding the other kinematic predictors and body length constant and averaging over random effects.
+Increasing stride length is more strongly associated with higher speed in ants than in non-ants,
+indicating that ants benefit more from long steps.")
+p_stride <- plot_mixed_effect(
+  model = m_speed,
+  data = d_speed,
+  label_size = 1.5,
+  caption = caption_stride,
+  title = "Effect of leg stride length on midpoint speed", 
+  sizevar = "body_length", 
+  xvar = "leg_stride_length",
+  ylab = expression("Midpoint speed in "*mm~s^{-1}*""),
+  xlab = "Leg stride length in mm",
+  size_label = "Body length in mm", 
+  add_lit_line = FALSE,
+  show_ci = TRUE
 )
+p_stride
+ggsave("speed_stride_length.pdf")
 
-broom.mixed::tidy(m_length, effects = "fixed", conf.int = TRUE)
-```
 
-You can add body mass as a covariate if it is available (e.g.
-`mass_mg`):[cite:1]
-
-```{r model-length-mass, eval=FALSE}
-m_length_mass <- lmer(
-  com_stride_length ~ ant_group + scale(mass_mg) +
-    (1 | Individuum) + (1 | Individuum:leg),
-  data = dat
+caption_contact <- paste(
+  "Raw data points (semi-transparent markers) and individual means (opaque marker) illustrate how midpoint speed
+varies with contact time in this limited sample of ant and non-ant species.
+Dashed lines are unadjusted group-wise linear fits. Solid coloured lines and ribbons show mixed-model predictions from a linear
+mixed-effects model with random intercepts for species and individuals and an ant_group × contact-time interaction,
+adjusted for leg stride length, swing time, and body length. Thus, the fitted curves reflect the effect of changing
+contact time while holding the other kinematic predictors and body length constant and averaging over random effects.
+Decreasing contact time is more strongly associated with higher speed in ants than in non-ants,
+consistent with ants regulating speed primarily by shortening stance duration.")
+p_contact <- plot_mixed_effect(
+  model = m_speed,
+  data = d_speed,
+  label_size = 1.5,
+  caption = caption_contact,
+  title = "Effect of contact time on midpoint speed", 
+  sizevar = "body_length", 
+  xvar = "contact_time",
+  ylab = expression("Midpoint speed in "*mm~s^{-1}*""),
+  xlab = "Contact time in s",
+  size_label = "Body length in mm", 
+  add_lit_line = FALSE,
+  show_ci = TRUE
 )
+p_contact
+ggsave("speed_contact_time.pdf")
 
-broom.mixed::tidy(m_length_mass, effects = "fixed", conf.int = TRUE)
-```
 
-Including mass helps separate taxon-related effects from simple
-allometric scaling.[cite:1]
-
-# Example 3: Duty factor
-
-Duty factor is modelled analogously.[cite:1]
-
-```{r model-duty}
-m_duty <- lmer(
-  duty_factor ~ ant_group + (1 | Individuum) + (1 | Individuum:leg),
-  data = dat
+caption_swing <- paste(
+  "Raw data points (semi-transparent markers) and individual means (opaque marker) illustrate how midpoint speed
+varies with swing time in this limited sample of ant and non-ant species.
+Dashed lines are unadjusted group-wise linear fits. Solid coloured lines and ribbons show mixed-model predictions from a linear
+mixed-effects model with random intercepts for species and individuals and an ant_group × swing-time interaction,
+adjusted for leg stride length, contact time, and body length. Thus, the fitted curves reflect the effect of changing
+swing time while holding the other kinematic predictors and body length constant and averaging over random effects.
+Longer swing time is clearly more detrimental to speed in ants than in non‑ants, suggesting that ants rely on very rapid leg recovery to maintain their high speeds.")
+p_swing <- plot_mixed_effect(
+  model = m_speed,
+  data = d_speed,
+  label_size = 1.5,
+  caption = caption_swing,
+  title = "Effect of swing time on midpoint speed", 
+  sizevar = "body_length", 
+  xvar = "swing_time",
+  ylab = expression("Midpoint speed in "*mm~s^{-1}*""),
+  xlab = "Swing time in s",
+  size_label = "Body length in mm", 
+  add_lit_line = FALSE,
+  show_ci = TRUE
 )
+p_swing
+ggsave("speed_swing_time.pdf")
 
-broom.mixed::tidy(m_duty, effects = "fixed", conf.int = TRUE)
 ```
 
-Because duty factor is a percentage bounded between 0 and 100, you may
-also consider modelling it on the logit scale if values are near the
-bounds.[cite:1]
 
-```{r model-duty-logit, eval=FALSE}
-dat <- dat %>%
-  mutate(
-    duty_prop = pmin(pmax(duty_factor / 100, 1e-4), 1 - 1e-4),
-    logit_duty = qlogis(duty_prop)
-  )
+# Tarsi Excursions (Gardner Altman Style Plots)
 
-m_duty_logit <- lmer(
-  logit_duty ~ ant_group + (1 | Individuum) + (1 | Individuum:leg),
-  data = dat
+```{r gardner, eval=FALSE}
+res_lon_min <- plot_gardner_altman_by_leg(
+data = kin_long$tarsus_summary,
+  metric_of_interest = "lon_min",
+  subtitle = "Maximum tarsus retraction from midpoint along longitudinal axis",
+  ylab = "Retraction (body lengths)",
+  ylim_raw = c(-1.2, 1.2),
+  ylim_diff = c(-0.6, 0.6)
 )
+res_lon_min$plot
+ggsave("lon_min.pdf", width = 4, height = 7)
 
-broom.mixed::tidy(m_duty_logit, effects = "fixed", conf.int = TRUE)
-```
-
-# Random-effects structure
-
-The examples above use random intercepts for individuals and legs within
-individuals.[cite:1] This is a pragmatic starting point that captures
-the main non-independence structure:
-
-- repeated strides per leg,
-- multiple legs per individual.
-
-Depending on sample size, you might also try more complex structures,
-such as random slopes of `ant_group` by species or genus, if those are
-included in the dataset.[cite:1]
-
-```{r model-speed-random-slopes, eval=FALSE}
-m_speed_slopes <- lmer(
-  com_stride_speed ~ ant_group +
-    (1 + ant_group | Genus) +
-    (1 | Individuum) + (1 | Individuum:leg),
-  data = dat
+res_lon_max <- plot_gardner_altman_by_leg(
+  data = kin_long$tarsus_summary,
+  metric_of_interest = "lon_max",
+   subtitle = "Maximum tarsus protraction from midpoint along longitudinal axis", 
+  ylab = "Protraction (body lengths)",
+  ylim_raw = c(-1.2, 1.2),
+  ylim_diff = c(-0.6, 0.6)
 )
+res_lon_max$plot
+ggsave("lon_max.pdf", width = 4, height = 7)
+
+res_lat_median <- plot_gardner_altman_by_leg(
+  data = kin_long$tarsus_summary,
+  metric_of_interest = "lat_median",
+  subtitle = "Median tarsus–midline distance (mediolateral)", 
+  ylab = "Distance (body lengths)",
+  ylim_raw = c(0.1, 0.9),
+  ylim_diff = c(-0.3, 0.3)
+)
+res_lat_median$plot
+ggsave("lat_median.pdf", width = 4, height = 7)
+
 ```
 
-Such models require enough levels per grouping factor to estimate the
-variance components reliably.[cite:1]
-
-# Reporting
-
-When reporting results, it is helpful to present:
-
-- estimated mean difference between ants and non-ants,
-- 95% confidence intervals,
-- approximate p-values (from `lmerTest`),
-- sample sizes (number of individuals, number of legs, number of
-strides/cycles per group).[cite:1]
-
-A brief summary table for COM stride speed might be constructed as:
-
-```{r summary-report-speed}
-tidy_speed <- broom.mixed::tidy(m_speed, effects = "fixed", conf.int = TRUE)
-
-tidy_speed
-```
-
----
-
-This vignette is intentionally minimal and focuses on the workflow:
-prepare long-format data, explore distributions, specify a sensible
-mixed-effects structure, and extract interpretable contrasts between
-ants and non-ants.[cite:1] You can extend it with additional outcomes
-(e.g. leg-based stride length), interaction terms (e.g. group × side),
-or Bayesian models as needed.
-
-Do you already have `all_leg_measures` saved as an RDS/CSV inside the package, or should the vignette also show how to construct it from the per-leg tibbles?

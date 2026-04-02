@@ -1,0 +1,42 @@
+#' Leg-level stride kinematics for walking hymenoptera
+#'
+#' A tidy data set containing leg-level stride kinematic measures and
+#' basic morphology for individual insects recorded in
+#' locomotion trials. Each row corresponds to one stride of a specific
+#' leg for a given individual and trial.
+#'
+#' @format A tibble with 150 rows and 20 variables:
+#' \describe{
+#'   \item{Individuum}{Numeric individual identifier (ID) for each animal.}
+#'   \item{side}{Body side of the leg (\code{"L"} for left, possibly \code{"R"} for right).}
+#'   \item{leg_num}{Integer leg index within the animal (e.g. 1–3 for front to hind leg on one side).}
+#'   \item{leg}{Leg label (character, e.g. \code{"L1"}, \code{"L2"}, \code{"L3"}).}
+#'   \item{stride}{Stride number for that leg within the analysed sequence (\code{"l1"}, \code{"l2"}, ...).}
+#'   \item{D_start}{Frame index of stride start (touchdown) in the original video.}
+#'   \item{D_end}{Frame index of stride end (touchdown of the next step) in the original video.}
+#'   \item{midpoint_stride_length}{Horizontal distance (mm) travelled by the body midpoint
+#'     over the stride interval.}
+#'   \item{leg_stride_length}{Horizontal distance (mm) travelled by the leg tarsus over the stride interval.}
+#'   \item{stride_duration}{Stride duration in seconds, derived from \code{(D_end - D_start) / fps}.}
+#'   \item{midpoint_stride_speed}{Stride-averaged forward speed of the body midpoint (mm/s).}
+#'   \item{leg_stride_speed}{Stride-averaged forward speed of the leg tarsus (mm/s).}
+#'   \item{body_length}{Body length of the individual in millimetres.}
+#'   \item{Messnummer}{Character trial identifier (original recording ID).}
+#'   \item{mass_mg}{Body mass in milligrams.}
+#'   \item{Genus}{Genus of the specimen (character).}
+#'   \item{Species}{Species name (character).}
+#'   \item{fps}{Frame rate of the recording in frames per second (character or numeric).}
+#'   \item{ant_group}{Factor indicating whether the species is an ant (\code{"ant"}) or non-ant (\code{"non-ant"}).}
+#' }
+#'
+#' @details
+#' The data originate from video recordings of walking insects.
+#' Touchdown indices (\code{D_start}, \code{D_end}) and leg trajectories were used
+#' to compute stride lengths, stride durations, and stride-averaged speeds for
+#' consecutive strides per leg and individual.
+#'
+#' @source Internal example data for the \pkg{gothouant} package.
+#'
+#' @examples
+#' dplyr::glimpse(data_stride_kin)
+"data_stride_kin"
