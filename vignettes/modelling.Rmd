@@ -48,7 +48,7 @@ library(gtsummary)
 library(broom.mixed)  # ensures broom::glance() works nicely for lmer models
 library(officer)
 library(flextable)
-
+devtools::load_all()
 ```
 
 # Data 
@@ -262,9 +262,15 @@ ggsave("speed_swing_time.pdf")
 
 # Tarsi Excursions (Gardner Altman Style Plots)
 
+
 ```{r gardner, eval=FALSE}
+kin_long$tarsus_summary
+kin_long$leg_times
+
+
+
 res_lon_min <- plot_gardner_altman_by_leg(
-data = kin_long$tarsus_summary,
+  data = kin_long$tarsus_summary,
   metric_of_interest = "lon_min",
   subtitle = "Maximum tarsus retraction from midpoint along longitudinal axis",
   ylab = "Retraction (body lengths)",
@@ -277,7 +283,7 @@ ggsave("lon_min.pdf", width = 4, height = 7)
 res_lon_max <- plot_gardner_altman_by_leg(
   data = kin_long$tarsus_summary,
   metric_of_interest = "lon_max",
-   subtitle = "Maximum tarsus protraction from midpoint along longitudinal axis", 
+  subtitle = "Maximum tarsus protraction from midpoint along longitudinal axis", 
   ylab = "Protraction (body lengths)",
   ylim_raw = c(-1.2, 1.2),
   ylim_diff = c(-0.6, 0.6)
@@ -295,6 +301,24 @@ res_lat_median <- plot_gardner_altman_by_leg(
 )
 res_lat_median$plot
 ggsave("lat_median.pdf", width = 4, height = 7)
+
+
+duty_factor <- kin_long$leg_times |>
+  rename(value = duty_factor) |>
+  mutate(metric = "duty_factor") |>
+  dplyr::filter(!is.na(value))
+
+res_duty <- plot_gardner_altman_by_leg(
+  data = duty_factor,
+  metric_of_interest = "duty_factor",
+  subtitle = "Leg duty factors",
+  ylab = "Duty factor",
+  ylim_raw = c(0, 100),
+  ylim_diff = c(-20, 20)
+)
+
+res_duty$plot
+ggsave("duty_factor.pdf", width = 4, height = 7)
 
 ```
 
